@@ -1,0 +1,100 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useStudy } from "@/lib/store";
+import EmptyState from "@/components/EmptyState";
+
+// Gemini sometimes returns "B" or "B) text" instead of the exact option string, so compare loosely.
+const norm = (s: string) => s.trim().toLowerCase();
+const isCorrect = (opt: string, answer: string, options: string[]) => {
+  if (norm(opt) === norm(answer)) return true;
+  const letter = norm(answer).match(/^([a-d])[).:]?$/)?.[1];
+  return letter ? options.indexOf(opt) === letter.charCodeAt(0) - 97 : false;
+};
+
+export default function QuizzesPage() {
+  const { ready, studyPackage, addQuizResult } = useStudy();
+  const quiz = studyPackage?.quiz ?? [];
+  const [idx, setIdx] = useState(0);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [score, setScore] = useState(0);
+  const [done, setDone] = useState(false);
+
+  if (!ready) return null;
+  if (!quiz.length) return <EmptyState title="No quiz yet" />;
+
+  if (done) {
+    const pct = Math.round((score / quiz.length) * 100);
+    return (
+      <div className="max-w-xl mx-auto mt-10 rounded-3xl border border-slate-800 bg-slate-900/40 p-10 text-center space-y-4">
+        <p className="text-5xl font-extrabold text-white">{pct}%</p>
+        <p className="text-slate-300">You got {score} of {quiz.length} correct.</p>
+        <div className="flex justify-center gap-3 pt-2">
+          <button
+            onClick={() => { setIdx(0); setPicked(null); setScore(0); setDone(false); }}
+            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500"
+          >Retake quiz</button>
+          <Link href="/analytics" className="rounded-xl border border-slate-800 px-5 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50">View analytics</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const q = quiz[idx];
+
+  const pick = (opt: string) => {
+    if (picked) return;
+    setPicked(opt);
+    if (isCorrect(opt, q.correct_answer, q.options)) setScore((s) => s + 1);
+  };
+
+  const next = () => {
+    if (idx + 1 < quiz.length) { setIdx(idx + 1); setPicked(null); }
+    else { addQuizResult(score, quiz.length); setDone(true); }
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="flex justify-between text-xs text-slate-400">
+        <span>Question {idx + 1} of {quiz.length}</span>
+        <span>Score: {score}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all" style={{ width: `${(idx / quiz.length) * 100}%` }} />
+      </div>
+
+      <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6 lg:p-8 space-y-5">
+        <h2 className="text-lg font-semibold text-white leading-relaxed">{q.question}</h2>
+        <div className="space-y-3">
+          {q.options.map((opt) => {
+            const correct = isCorrect(opt, q.correct_answer, q.options);
+            const chosen = picked === opt;
+            let style = "border-slate-800 bg-slate-950 text-slate-300 hover:border-indigo-500/40";
+            if (picked) {
+              if (correct) style = "border-emerald-500/40 bg-emerald-950/20 text-emerald-300";
+              else if (chosen) style = "border-red-500/40 bg-red-950/20 text-red-300";
+              else style = "border-slate-800 bg-slate-950 text-slate-500";
+            }
+            return (
+              <button key={opt} onClick={() => pick(opt)} disabled={!!picked} className={`w-full rounded-xl border p-4 text-left text-sm transition-all ${style}`}>
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+        {picked && (
+          <p className="rounded-xl border border-slate-800/60 bg-slate-950/50 p-3 text-sm text-slate-400">
+            <span className="font-semibold text-indigo-400">Why: </span>{q.explanation}
+          </p>
+        )}
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={next} disabled={!picked} className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-40">
+          {idx + 1 < quiz.length ? "Next question" : "Finish quiz"}
+        </button>
+      </div>
+    </div>
+  );
+}

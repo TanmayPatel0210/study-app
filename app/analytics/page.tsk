@@ -1,0 +1,77 @@
+"use client";
+
+import { useStudy, dayKey } from "@/lib/store";
+
+export default function AnalyticsPage() {
+  const { ready, sessions, lifetimeMastered, avgScore, streak, quizResults, activeDays, resetAll } = useStudy();
+  if (!ready) return null;
+
+  const recent = quizResults.slice(-10);
+  const active = new Set(activeDays);
+  const last14 = Array.from({ length: 14 }, (_, k) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - k));
+    return { key: dayKey(d), label: d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" }) };
+  });
+
+  const stats = [
+    { label: "Sessions", value: sessions },
+    { label: "Cards mastered", value: lifetimeMastered },
+    { label: "Quiz average", value: avgScore === null ? "–" : `${avgScore}%` },
+    { label: "Day streak", value: streak },
+  ];
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <span className="text-xs text-slate-400">{s.label}</span>
+            <p className="mt-1 text-2xl font-bold text-white">{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6">
+        <h3 className="font-bold text-white mb-4">Recent quiz scores</h3>
+        {recent.length === 0 ? (
+          <p className="text-sm text-slate-400">Finish a quiz to see your scores here.</p>
+        ) : (
+          <div className="flex h-40 items-end gap-2">
+            {recent.map((r, k) => {
+              const pct = Math.round((r.score / r.total) * 100);
+              return (
+                <div key={k} className="flex flex-1 flex-col items-center justify-end gap-1 h-full">
+                  <span className="text-xs text-slate-400">{pct}%</span>
+                  <div className="w-full rounded-t-lg bg-gradient-to-t from-indigo-600 to-cyan-400" style={{ height: `${Math.max(pct, 4)}%` }} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6">
+        <h3 className="font-bold text-white mb-4">Last 14 days</h3>
+        <div className="grid grid-cols-7 gap-2">
+          {last14.map((d) => (
+            <div
+              key={d.key}
+              title={d.label}
+              className={`rounded-lg py-3 text-center text-xs ${active.has(d.key) ? "bg-indigo-600/30 text-indigo-200 border border-indigo-500/40" : "bg-slate-950 text-slate-600 border border-slate-800"}`}
+            >
+              {d.label}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <button
+        onClick={() => { if (confirm("Clear all saved progress?")) resetAll(); }}
+        className="text-xs text-slate-500 hover:text-red-400"
+      >
+        Reset all progress
+      </button>
+    </div>
+  );
+}
